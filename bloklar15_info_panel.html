@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <title>Blockly + Three.js Robot Kolu (Döngülü) & Görev Paneli</title>
+  <style>
+    body { margin:0; display:flex; height:100vh; overflow:hidden; font-family:sans-serif; }
+    #blocklyDiv { width:45%; height:100%; }
+    #threejsDiv { width:55%; height:100%; background:#eee; position:relative; }
+
+    /* Butonlar */
+    #runButton{
+      position: absolute; top: 20px; padding: 8px 12px;
+      background-color: #4CAF50; color: white; border: none;
+      border-radius: 6px; cursor: pointer; font-size: 16px;
+      box-shadow: 0 3px 6px rgba(0,0,0,0.2); z-index: 10;
+      transition: background-color 0.3s;
+    }
+    #runButton { left: 500px; width:110px; }
+    #runButton:hover { background-color: #45a049; }
+
+    /*neon buton*/
+    /* Stil 1 - Neon Işıklı */
+
+    #neon{
+      position: absolute; top: 20px; left: 500px; width:110px; z-index: 1000; 
+    }
+    .neon-button {
+      padding: 12px 16px; 
+      background: linear-gradient(145deg, #23c483, #1da86c);
+      color: white;
+      border: 1px solid #00ffcc;
+      border-radius: 12px;
+      font-size: 17px;
+      font-weight: bold;
+      text-shadow: 0 0 6px #00ffcc;
+      box-shadow: 0 0 12px #00ffcc, 0 0 24px #009977 inset;
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+    .neon-button:hover {
+      background: #00dba0;
+      box-shadow: 0 0 20px #00ffe1, 0 0 30px #00aaff inset;
+    }
+
+    /* Görev çemberleri */
+    #taskPanel {
+      position: absolute; top: 10px; right: 100px; user-select: none;;
+      display: flex; gap: 6px; z-index: 10;
+    }
+    .taskCircle {
+      position: relative;
+      width: 36px; height: 36px; border: 2px solid #888;
+      border-radius: 50%; display: flex;
+      align-items: center; justify-content: center;
+      font-size: 14px; font-weight: bold;
+      background-color: #f0f0f0; opacity: 0.7;
+      cursor: pointer; transition: all 0.3s;
+    }
+    .taskCircle.active { opacity:1; border-color:#444; background-color:#f0a40d; }
+    .taskCircle.done {
+      background-color:#4CAF50; border-color:#2e7d32;
+      opacity:1; color:white;
+    }
+
+    /* Info Panel */
+    #infoPanel2 {
+      position: absolute;
+      right: 70px;
+      width: 500px;
+      height:110px;
+      bottom: 0;
+      transition: transform 0.6s ease, opacity 0.6s ease;
+      z-index: 10;
+      user-select: none;
+      word-break: break-word; overflow-wrap: break-word;
+    }
+
+    #infoPanel2 h4 { margin: 0 0 4px; text-align: center;}
+    #infoPanel2 p { margin: 0; line-height: 1.5; text-align: center;}
+
+    .panel-content {
+      background: linear-gradient(145deg, #251e3e, #3c2f7c);
+      color: white;
+      border-radius: 16px 16px 0 0;
+      padding: 16px 16px 16px 110px;
+      box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.4);
+      position: relative;
+      min-height: 100px;
+      font-size: large;
+    }
+
+    .panel-content img.robot-image {
+      position: absolute;
+      left:13px;
+      top: -10px;
+      width: 130px;
+      height: auto;
+      transform: scaleX(-1);
+    }
+
+    .close-btn {
+      position: absolute;
+      right: 10px;
+      top: 10px;
+      cursor: pointer;
+      font-size: 18px;
+      color: #ffcccc;
+    }
+
+    .toggle-help {
+      background-color: #6a4cff;
+      color: white;
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      text-align: center;
+      line-height: 42px;
+      font-size: 20px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      display: none;
+      margin: 8px auto 0;
+    }
+
+
+
+  </style>
+
+  <!-- Kütüphaneler -->
+  <script src="https://unpkg.com/blockly/blockly.min.js"></script>
+  <script src="https://unpkg.com/blockly/msg/tr.js"></script>
+  <script src="acorn_interpreter.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/examples/js/loaders/RGBELoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/examples/js/loaders/OBJLoader.js"></script>
+ 
+</head>
+<body>
+  <!-- # id="runButton" -->
+  <button id="neon" class="neon-button" >Çalıştır</button>  
+  <div id="taskPanel"></div>
+  <div id="blocklyDiv"></div>
+  <div id="threejsDiv"></div>
+
+  <!-- TOOLBOX -->
+  <xml id="toolbox" style="display:none">
+    <category name="Robot">
+      <block type="rotate_base"></block>
+      <block type="rotate_arm"></block>
+      <block type="pick_object"></block>
+      <block type="place_object"></block>
+      <block type="move_robot_forward"></block>
+    </category>
+    <category name="Kontrol">
+      <block type="repeat_n_times"></block>
+      <block type="while_do"></block>
+      <block type="controls_if"></block>
+    </category>
+    <category name="Matematik">
+      <block type="math_number"><field name="NUM">5</field></block>
+      <block type="math_random_int"></block>
+      <block type="logic_boolean"></block>
+      <block type="logic_compare"></block>
+    </category>
+    <category name="Değişkenler" custom="VARIABLE"></category>
+  </xml>
+
+  <!-- Ses Efektleri -->
+  <audio id="correctSound" src="https://raw.githubusercontent.com/erhan3861/arrow-concept-game/main/correct.wav"></audio>
+  <audio id="wrongSound" src="https://raw.githubusercontent.com/erhan3861/arrow-concept-game/main/wrong.mp3"></audio>
+
+  <div id="infoPanel2">
+  <div class="panel-content">
+    <img src="robot.png" alt="Robot" class="robot-image">
+    <span class="close-btn">✖</span>
+    <p id="panelText">🔧 Görevi başarmak için tabanı döndürmelisin!<br>💡 "tabanı döndür" bloğunu kullanmayı dene!</p>
+   </div>
+   <div class="toggle-help">❔</div>
+  </div>
+
+
+  <script>
+
+
+    // Bilgi paneli
+   const panel = document.getElementById("infoPanel2");
+   const content = document.querySelector(".panel-content");
+   const closeBtn = document.querySelector(".close-btn");
+   const toggleBtn = document.querySelector(".toggle-help"); 
+
+   closeBtn.onclick = () => {
+    content.style.opacity = "0";
+        setTimeout(() => {
+        content.style.display = "none";
+        toggleBtn.style.display = "block";
+        panel.style.transform = "translateY(50px)";
+        }, 300);
+    };
+
+    toggleBtn.onclick = () => {
+        panel.style.transform = "translateY(0)";
+        content.style.display = "block";
+        setTimeout(() => {
+        content.style.opacity = "1";
+        }, 50);
+        toggleBtn.style.display = "none";
+    };
+    // Panel toggle
+    
+    const taskPanel = document.getElementById('taskPanel');
+
+    // Ses efektleri
+    const correctSound = document.getElementById("correctSound");
+    const wrongSound = document.getElementById("wrongSound");
+
+    // Blockly init
+    const workspace = Blockly.inject('blocklyDiv', {
+      toolbox: document.getElementById('toolbox'), renderer: 'zelos',
+      grid: { spacing:20, length:3, colour:'#ccc', snap:true }, trashcan:true,
+      zoom: { controls:true, wheel:true, startScale:1.0, maxScale:3, minScale:0.3, scaleSpeed:1.2 }
+    });
+
+    // Custom blocks
+    Blockly.defineBlocksWithJsonArray([
+      { "type": "rotate_base", "message0": "Tabanı döndür %1 derece", "args0":[{ "type":"input_value","name":"DEG","check":"Number" }], "previousStatement":null, "nextStatement":null, "colour":230 },
+      { "type": "rotate_arm",  "message0": "Kolu kaldır %1 derece",  "args0":[{ "type":"input_value","name":"DEG","check":"Number" }], "previousStatement":null, "nextStatement":null, "colour":200 },
+      { "type": "pick_object",   "message0": "Ürünü al",    "previousStatement":null, "nextStatement":null, "colour":120 },
+      { "type": "place_object",  "message0": "Ürünü bırak",  "previousStatement":null, "nextStatement":null, "colour":60  },
+      { "type": "repeat_n_times","message0": "%1 kez tekrarla", "args0":[{ "type":"input_value","name":"COUNT","check":"Number" }], "message1":"Yap %1","args1":[{ "type":"input_statement","name":"DO" }], "previousStatement":null, "nextStatement":null, "colour":120 },
+      { "type": "while_do",      "message0": "%1 sürece",     "args0":[{ "type":"input_value","name":"COND","check":"Boolean" }], "message1":"Yap %1","args1":[{ "type":"input_statement","name":"DO" }], "previousStatement":null, "nextStatement":null, "colour":180 },
+      { "type": "move_robot_forward","message0": "Robotu ileri %1 birim hareket ettir","args0":[{ "type":"field_number","name":"DIST","value":1 }], "previousStatement":null, "nextStatement":null, "colour":160 }
+    ]);
+
+    // Generators
+    const jsGen = Blockly.JavaScript;
+    jsGen.forBlock['rotate_base']   = b => `rotateBase(${jsGen.valueToCode(b,'DEG',jsGen.ORDER_NONE)||0});\n`;
+    jsGen.forBlock['rotate_arm']    = b => `rotateArm(${jsGen.valueToCode(b,'DEG',jsGen.ORDER_NONE)||0});\n`;
+    jsGen.forBlock['pick_object']   = () => `pickObject();\n`;
+    jsGen.forBlock['place_object']  = () => `placeObject();\n`;
+    jsGen.forBlock['move_robot_forward'] = b => `moveRobotForward(${b.getFieldValue('DIST')});\n`;
+    jsGen.forBlock['repeat_n_times'] = function(b) {
+      var repeats = jsGen.valueToCode(b, 'COUNT', jsGen.ORDER_NONE) || '0';
+      var branch = jsGen.statementToCode(b, 'DO');
+      return 'for (var i = 0; i < ' + repeats + '; i++) {' + branch + '}';};
+    
+    jsGen.forBlock['while_do'] = b=>{
+      const cond=Blockly.JavaScript.valueToCode(b,'COND',Blockly.JavaScript.ORDER_LOGICAL_OR)||'false';
+      const branch=Blockly.JavaScript.statementToCode(b,'DO');
+      return `while(${cond}){${branch}}\n`;
+    };
+
+
+    // Three.js setup
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, (window.innerWidth*0.6)/window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias:true });
+    renderer.setSize(window.innerWidth*0.6, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.getElementById('threejsDiv').appendChild(renderer.domElement);
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+
+    // Lights & environment
+    new THREE.RGBELoader().load('poolbeg_2k.hdr', tex => { tex.mapping = THREE.EquirectangularReflectionMapping; scene.environment = tex; });
+    scene.add(new THREE.AmbientLight(0xffffff,0.5));
+    const dirLight = new THREE.DirectionalLight(0xffffff,1.2);
+    dirLight.position.set(10,15,10); dirLight.castShadow = true;
+    dirLight.shadow.bias = -0.0001;
+    dirLight.shadow.mapSize.set(1024,1024);
+    scene.add(dirLight);
+
+    const groundMaterial = new THREE.MeshStandardMaterial({ color:"#2F4F4F", roughness:0.4, metalness:0.6 });
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(20,20), groundMaterial);
+    ground.rotation.x = -Math.PI/2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+    scene.add(new THREE.GridHelper(20,20,0x264653,0x264653), new THREE.AxesHelper(3));
+
+    // Robot and product
+    const metalMat = new THREE.MeshPhysicalMaterial({ color:0xcccccc, metalness:1, roughness:0.1, clearcoat:0.5, clearcoatRoughness:0.05 });
+    const base = new THREE.Group(); base.position.y=0.25; scene.add(base);
+    const baseMesh = new THREE.Mesh(new THREE.CylinderGeometry(1,1,0.5,32), metalMat);
+    baseMesh.castShadow=true; base.add(baseMesh);
+
+    const arm = new THREE.Group(); arm.position.y=0.25; base.add(arm);
+    const armMesh = new THREE.Mesh(new THREE.BoxGeometry(0.3,2,0.3), metalMat);
+    armMesh.position.y=1; armMesh.castShadow=true; arm.add(armMesh);
+
+    const objLoader1 = new THREE.OBJLoader();
+    objLoader1.load('r1.obj', obj => { obj.scale.set(0.05,0.05,0.05); obj.position.y=0.4; obj.traverse(c=>{ if(c.isMesh){ c.material = new THREE.MeshStandardMaterial({color:0x8899ff,metalness:0.6,roughness:0.3}); c.castShadow=true; c.receiveShadow=true; }}); base.add(obj); });
+
+
+
+    let robot2, robot3;
+    const objLoader = new THREE.OBJLoader();
+    objLoader.load('r2.obj', obj2 => {
+      robot2 = obj2; robot2.scale.set(0.05,0.05,0.05); robot2.position.y=1.7;
+      robot2.traverse(c=>{ if(c.isMesh){ c.material=new THREE.MeshStandardMaterial({color:0x8899ff,metalness:0.6,roughness:0.3}); c.castShadow=true; c.receiveShadow=true; }});
+      objLoader.load('r4.obj', obj3 => {
+        robot3 = obj3; robot3.scale.set(1.45,1.45,1.45); robot3.position.set(0,0,50);
+        robot3.traverse(c=>{ if(c.isMesh){ c.material=new THREE.MeshStandardMaterial({color:0x8899ff,metalness:0.6,roughness:0.3}); c.castShadow=true; c.receiveShadow=true; }});
+        robot2.add(robot3);
+      });
+      base.add(robot2);
+    });
+
+    const product = new THREE.Mesh(new THREE.BoxGeometry(0.4,0.4,0.4), metalMat);
+    product.position.set(2,0.2,0); product.castShadow=true; scene.add(product);
+
+    camera.position.set(5,5,5); camera.lookAt(0,1,0);
+
+let fireworkTexture;
+function getFireworkTexture() {
+  if (fireworkTexture) return fireworkTexture;
+  const size = 64;
+  const canvas = document.createElement('canvas'); canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const gradient = ctx.createRadialGradient(size/2,size/2,0,size/2,size/2,size/2);
+  gradient.addColorStop(0,'rgba(255,255,255,1)');
+  gradient.addColorStop(0.2,'rgba(255,200,200,1)');
+  gradient.addColorStop(0.4,'rgba(255,0,0,0.8)');
+  gradient.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle = gradient; ctx.fillRect(0,0,size,size);
+  fireworkTexture = new THREE.CanvasTexture(canvas);
+  return fireworkTexture;
+}
+
+function showFireworks() {
+      // Fireworks at base position
+      const startPos = base.getWorldPosition(new THREE.Vector3());
+      // 2. Partikülleri THREE.Points olarak oluştur
+      const count = 300;
+      const positions = new Float32Array(count * 3);
+      const colors    = new Float32Array(count * 3);
+      const velocities = [];
+      const palette = [0xff0055,0xffa500,0x55ff00,0x00aaff,0xff00ff];
+      for (let i = 0; i < count; i++) {
+        positions[3*i]   = startPos.x;
+        positions[3*i+1] = startPos.y + 3.5;  // biraz yukarı
+        positions[3*i+2] = startPos.z;
+        const c = new THREE.Color(palette[Math.floor(Math.random()*palette.length)]);
+        colors[3*i]   = c.r;
+        colors[3*i+1] = c.g;
+        colors[3*i+2] = c.b;
+        const theta = Math.random()*2*Math.PI, phi = Math.acos((Math.random()*2)-1);
+        const speed = Math.random()*3+2;
+        velocities.push(new THREE.Vector3(
+          Math.sin(phi)*Math.cos(theta)*speed,
+          Math.cos(phi)*speed,
+          Math.sin(phi)*Math.sin(theta)*speed
+        ));
+      }
+      const geom = new THREE.BufferGeometry();
+      geom.setAttribute('position', new THREE.BufferAttribute(positions,3));
+      geom.setAttribute('color',    new THREE.BufferAttribute(colors,3));
+      const mat = new THREE.PointsMaterial({
+        size: 0.3,
+        map: getFireworkTexture(),
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        sizeAttenuation: true,
+        vertexColors: true
+      });
+      const pts = new THREE.Points(geom, mat);
+      scene.add(pts);
+      // 3. Animasyon döngüsü
+      let elapsed = 0, last = performance.now();
+      const lifetime = 10.0;
+      function update(now) {
+        const dt = (now - last)/1000;
+        last = now;
+        elapsed += dt;
+        const posAttr = geom.attributes.position.array;
+        for (let i = 0; i < count; i++) {
+          const v = velocities[i];
+          posAttr[3*i]   += v.x * dt;
+          posAttr[3*i+1] += v.y * dt - 0.5*9.8*dt*dt;
+          posAttr[3*i+2] += v.z * dt;
+          v.y -= 9.8 * dt;
+        }
+        geom.attributes.position.needsUpdate = true;
+        if (elapsed < lifetime) {
+          requestAnimationFrame(update);
+        } else {
+          scene.remove(pts);
+          geom.dispose(); mat.dispose();
+        }
+      }
+      requestAnimationFrame(update);  
+      setTimeout(()=>{
+        base.position.x = 0; 
+        base.position.z = 0; // Reset base position for fireworks
+      },3000);
+    }
+
+
+    // Render loop
+    function animate() {
+      requestAnimationFrame(animate);
+      renderer.render(scene, camera);
+      controls.update();
+    }
+    animate();
+
+    // Task logic
+    let holding = false;
+    let current = 0;
+    let loopCount = 0;
+    let açı = 0; 
+
+    const checks = [ // n -> name a_> argument
+        (n,a)=>n==='rotateBase'&&a===45,
+        (n,a)=>n==='rotateArm'&&a===30,
+        (n,a)=>n==='moveRobotForward'&&a===2,
+        (n,a)=>(n==='pickObject'),
+        (n,a)=>(n==='placeObject'),
+        // 6. adım: Ürünü al -> Tabanı 180° döndür -> Ürünü bırak
+        (function(){ let step5=0; return (n,a)=>{
+            if(current!==5) return false;
+            if(step5===0 && n==='pickObject') { step5=1; return false; }
+            if(step5===1 && n==='rotateBase' && a===180) { step5=2; return false; }
+            if(step5===2 && n==='placeObject') { step5=0; return true; }
+            return false;
+        }; })(),
+
+        // 7. görev: 3 kez ileri 1 birim
+        (n,a)=>{
+          if (current !== 6) return false;
+          if (n==='moveRobotForward' && a===1) {
+            loopCount++;
+            if (loopCount >= 3) {
+              loopCount = 0;  // reset
+              return true;
+            }
+          }
+          return false;
+        },
+
+        // 8. görev: 5 kez al-bırak (pick+place bir kez sayılıyor)
+        (n,a)=>{
+          if (current !== 7) return false;
+          if (n==='pickObject' || n==='placeObject') {
+            loopCount++;
+            if (loopCount >= 10) { // pick+place = 2 adım ×5
+              loopCount = 0;       // reset
+              return true;
+            }
+          }
+          return false;
+        },
+        // 9. görev: açı değişkenini 90 yap ve tabanı açı değişkeni kadar döndür
+        (n,a)=>(n==='rotateBase' && a===açı && checkTask9()),
+
+        // 10. görev: açı değişkenini 100 yap, sonra 10 azalt ve robot kolunu açı değişkeni kadar kaldır
+        (function(){let step = 0;return (n,a)=>{if(current !== 9) return false;if(step === 0 && checkTask10()) {açı -= 10;step++;}
+           return step === 1 && n === 'rotateArm' && a === açı;};})(), 
+      ];
+
+    function checkTask9() {
+      console.log('>>> wrap called:', 'current:', current, 'açı:', açı);
+      var allBlocks = workspace.getTopBlocks(false);
+      var success = false;
+
+      allBlocks.forEach(function(block) {
+        // "Değişkeni ayarla" bloğunu bul (variables_set)
+        if (block.type === 'variables_set') {
+          
+          // DÜZELTME: Doğrudan adı değil, değişkenin ID'sini alıyoruz.
+          var variableId = block.getFieldValue('VAR');
+          // ID'yi kullanarak çalışma alanından değişkenin kendisini buluyoruz.
+          var variable = workspace.getVariableById(variableId);
+
+          // Değişkenin var olup olmadığını kontrol et
+          if (variable) {
+            // Artık değişkenin adını güvenle alabiliriz.
+            var variableName = variable.name;
+            
+            // Değişkene bağlanan değer bloğunu al
+            var valueBlock = block.getInputTargetBlock('VALUE');
+            
+            // Koşulları kontrol et:
+            // 1. Değişkenin adı 'puan' mı?
+            // 2. Değer bloğu var mı ve türü 'math_number' mı?
+            // 3. Değer bloğunun değeri '0' mı?
+            if (variableName === 'açı' && 
+                valueBlock && 
+                valueBlock.type === 'math_number' && 
+                valueBlock.getFieldValue('NUM') == '90') {
+              success = true;
+            //   return true; // Görev tamamlandı
+            }
+          }
+        }
+      });
+    return success;}
+
+    function checkTask10() {
+        const blocks = workspace.getAllBlocks(false);
+        for (let block of blocks) {
+            if (block.type === 'math_change') {
+            const variableId = block.getFieldValue('VAR');
+            const variable = workspace.getVariableById(variableId);
+            if (variable && variable.name === 'açı') {
+                // Giriş bloğu (math_number) var mı?
+                const deltaBlock = block.getInputTargetBlock('DELTA');
+                if (
+                deltaBlock &&
+                deltaBlock.type === 'math_number' &&
+                Number(deltaBlock.getFieldValue('NUM')) === -10
+                ) {
+                return true;
+                }
+            }
+            }
+        }
+        return false;
+        }
+
+    const tasks = [];
+    const descriptions = [
+      'Robotun tabanını 45° döndür.','Kolu 30° kaldır','2 birim ileri git','Ürünü al',
+      'Ürünü bırak','Ürün al.Tabanı 180° döndür.Ürünü bırak.','3 kez ileri 1 birim','5 kez al-bırak',
+      'açı değişkenini 90 yap ve tabanı açı değişkeni kadar döndür',
+      'açı değişkenini 30 yap, sonra 10 azalt ve robot kolunu açı değişkeni kadar kaldır'
+    ];
+    const panelText = document.getElementById("panelText");
+    
+    descriptions.forEach((d,i) => {
+      const c = document.createElement('div');
+      c.className = 'taskCircle';
+      c.id = `task-${i}`;
+      c.innerText = i+1;
+      taskPanel.appendChild(c);
+      tasks.push({ el: c, desc: d });
+
+      c.addEventListener('click', () => {
+        if (!c.classList.contains('active')) return;
+        panelText.innerHTML = `<h4> 🎯 Görev ${i+1} 🎯</h4><p>${d}</p>`;
+      });
+
+    });
+    tasks[0].el.classList.add('active');
+    // Show first task info
+    panelText.innerHTML = `<h4> 🎯Görev 1 🎯</h4><p>${descriptions[0]}</p>`;
+
+
+   // wrap function for interpreter 
+   function wrap(name,fn){return arg=>{fn(arg); if(checks[current](name,arg)){
+      correctSound.currentTime = 0;
+      correctSound.play();
+      showFireworks();
+      setTimeout(()=>{ 
+          tasks[current].el.classList.add('done');
+          // önce açı atamaları ve Blockly bloğu ekleme
+          current++;
+          if(current<descriptions.length){
+                tasks[current].el.classList.add('active');
+                panelText.innerHTML=`<h4>🎯 Görev ${current+1} 🎯</h4><p>${descriptions[current]}</p>`;
+                panelText.classList.add('visible');}
+           else {
+                panelText.innerHTML=`<h4>🤩Tebrikler!🤩</h4><p>🎉Tüm görevleri tamamladınız.🎉</p>`;
+                panelText.classList.add('visible');}
+          },1000);} };}
+ 
+    // Interpreter & run
+    document.getElementById('neon').onclick = () => {
+     
+      if (current === 8) {açı = 90;};
+      if (current === 9) {açı = 30;};
+  
+      
+      const code = Blockly.JavaScript.workspaceToCode(workspace);
+      const interpreter = new Interpreter(code, (intr, global) => {
+        intr.setProperty(global, 'rotateBase', intr.createNativeFunction(wrap('rotateBase', deg => base.rotation.y += THREE.MathUtils.degToRad(deg))));
+        intr.setProperty(global, 'rotateArm', intr.createNativeFunction(wrap('rotateArm', deg => robot2.rotation.x += THREE.MathUtils.degToRad(-deg))));
+        intr.setProperty(global, 'pickObject', intr.createNativeFunction(wrap('pickObject', () => {
+          if (!holding) { robot3.add(product); product.scale.set(10,10,10); product.position.set(0,0,14); holding = true; }
+        })));
+        intr.setProperty(global, 'placeObject', intr.createNativeFunction(wrap('placeObject', () => {
+          if (holding) { scene.add(product); const dir = new THREE.Vector3(0,0,1); dir.applyQuaternion(base.getWorldQuaternion(new THREE.Quaternion())); dir.normalize(); const drop = robot3.getWorldPosition(new THREE.Vector3()).add(dir.multiplyScalar(2)); drop.y = 0.2; product.position.copy(drop); product.scale.set(1,1,1); holding = false; }
+        })));
+        intr.setProperty(global, 'moveRobotForward', intr.createNativeFunction(wrap('moveRobotForward', d => base.position.z -= d)));
+      });
+      
+      function next() { if (interpreter.step()) setTimeout(next, 50); }
+      next();
+    };
+
+function loadTask10Blocks() {
+  const xmlText = `
+  <xml xmlns="https://developers.google.com/blockly/xml">
+    <variables>
+      <variable id="aVar">açı</variable>
+    </variables>
+  
+  </xml>`; 
+  workspace .clear();
+  const xmlDom = Blockly.utils.xml.textToDom(xmlText);  // ✅ doğru kullanım
+  Blockly.Xml.domToWorkspace(xmlDom, workspace);
+}
+loadTask10Blocks(); // Başlangıçta 10. görevi yükle
+
+const blocks = workspace.getAllBlocks(false);
+blocks.forEach(block => {
+  console.log("Blok tipi:", block.type);
+  block.inputList.forEach(input => {
+    input.fieldRow.forEach(field => {
+      console.log("Alan adı:", field.name, "| Değer:", field.getValue());
+    });
+  });
+});
+
+
+
+  </script>
+</body>
+</html>
